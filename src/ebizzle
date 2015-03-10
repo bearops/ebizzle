@@ -11,9 +11,7 @@ import ConfigParser
 
 S3_BUILD_DEPS_BUCKET = "dbz-build-deps"
 
-DEFAULT_S3_PROFILE = "production"
-
-DEFAULT_EB_PROFILE = "test"
+DEFAULT_PROFILE = "test"
 
 
 def exit(message=None, error=False):
@@ -47,9 +45,15 @@ def get_app_version():
     return subprocess.check_output("git describe --tags", shell=True).strip()
 
 
-def get_aws_cli_credentials(profile):
+def get_aws_cli_config():
     config = ConfigParser.ConfigParser()
     config.read(os.path.expanduser("~/.aws/credentials"))
+
+    return config
+
+
+def get_aws_cli_credentials(profile):
+    config = get_aws_cli_config()
 
     key = config.get(profile, "aws_access_key_id")
     secret = config.get(profile, "aws_secret_access_key")
@@ -57,17 +61,21 @@ def get_aws_cli_credentials(profile):
     return key, secret
 
 
-def get_s3_conn(profile=DEFAULT_S3_PROFILE):
+def get_aws_cli_profile_names():
+    return get_aws_cli_config().sections()
+
+
+def get_s3_conn(profile):
     return boto.connect_s3(*get_aws_cli_credentials(profile))
 
 
-def get_beanstalk(profile=DEFAULT_EB_PROFILE):
+def get_beanstalk(profile):
     region = beanstalk.regions()[2]
     return beanstalk.layer1.Layer1(*get_aws_cli_credentials(profile),
                                    region=region)
 
 
-def upload_source_bundle(app, version, source_bundle_path, overwrite=False):
+def upload_source_bundle(profile, app, version, source_bundle_path, overwrite=False):
     if not source_bundle_path:
         source_bundle_path = "target/%s-%s.zip" % (app, version)
         print("Source bundle location not given, using default: %s"
@@ -99,9 +107,9 @@ def upload_source_bundle(app, version, source_bundle_path, overwrite=False):
     return key.key
 
 
-def create_version(app, version, s3_bucket, s3_key):
+def create_version(profile, app, version, s3_bucket, s3_key):
     print("Create version %s:%s" % (app, version))
-    layer1 = get_beanstalk()
+    layer1 = get_beanstalk(profile)
     return layer1.create_application_version(app,
                                              version,
                                              description=version,
@@ -109,9 +117,9 @@ def create_version(app, version, s3_bucket, s3_key):
                                              s3_key=s3_key)
 
 
-def deploy_version(app, version):
+def deploy_version(profile, app, version):
     print("Deploy version %s:%s" % (app, version))
-    layer1 = get_beanstalk()
+    layer1 = get_beanstalk(profile)
     try:
         layer1.update_environment(environment_name=app,
                                   version_label=version)
@@ -119,8 +127,8 @@ def deploy_version(app, version):
         panic("Error: %s" % e.message)
 
 
-def list_versions(app):
-    layer1 = get_beanstalk()
+def list_versions(profile, app):
+    layer1 = get_beanstalk(profile)
     data = layer1.describe_application_versions(application_name=app)
 
     response_key = "DescribeApplicationVersionsResponse"
@@ -138,6 +146,10 @@ def main():
     parser.add_argument("-s", "--source-bundle",
                         required=False,
                         help="EB's source bundle location.")
+    parser.add_argument("-p", "--profile",
+                        required=False,
+                        default=DEFAULT_PROFILE,
+                        help="AWS CLI profile to use.")
     parser.add_argument("action", nargs=1,
                         choices=["create", "deploy", "list"],
                         help="Action to perform: create, deploy, list.")
@@ -160,16 +172,18 @@ def main():
         app = args.app
         version = None
 
+    profile = args.profile
+
+    if profile not in get_aws_cli_profile_names():
+        panic("Profile not found: %s" % profile)
+
     if action == "create":
-        key = upload_source_bundle(app, version, args.source_bundle)
-        create_version(app,
-                       version,
-                       s3_bucket=S3_BUILD_DEPS_BUCKET,
-                       s3_key=key)
+        key = upload_source_bundle(profile, app, version, args.source_bundle)
+        create_version(profile, app, version, S3_BUILD_DEPS_BUCKET, key)
     elif action == "deploy":
-        deploy_version(app, version)
+        deploy_version(profile, app, version)
     elif action == "list":
-        list_versions(app)
+        list_versions(profile, app)
 
 
 if __name__ == "__main__":
