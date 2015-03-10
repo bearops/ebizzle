@@ -135,9 +135,6 @@ def list_versions(app):
 def main():
     parser = argparse.ArgumentParser("ebizzle")
 
-    parser.add_argument("-e", "--env",
-                        required=False,
-                        help="Environment to perform the action on.")
     parser.add_argument("-s", "--source-bundle",
                         required=False,
                         help="EB's source bundle location.")
