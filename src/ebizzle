@@ -29,7 +29,8 @@ def panic(message=None):
 
 def in_git_repository():
     dev_null = open(os.devnull, 'wb')
-    return 0 == subprocess.call("git status -s --porcelain 2> /dev/null",
+
+    return 0 == subprocess.call("git status -s --porcelain",
                                 stdout=dev_null,
                                 stderr=dev_null,
                                 shell=True)
