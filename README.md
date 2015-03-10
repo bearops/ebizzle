@@ -14,6 +14,8 @@ git clone git@github.com:bearops/ebizzle.git
 cd ebizzle && make install
 ```
 
+A `/usr/local/bin/ebizzle` script will be created in the installation process.
+
 # Usage
 
 ```bash
