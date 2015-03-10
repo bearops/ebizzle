@@ -1,0 +1,178 @@
+#!/usr/bin/env python
+import os
+import sys
+import json
+import boto
+from boto import beanstalk
+import argparse
+import subprocess
+import ConfigParser
+
+
+S3_BUILD_DEPS_BUCKET = "dbz-build-deps"
+
+DEFAULT_S3_PROFILE = "production"
+
+DEFAULT_EB_PROFILE = "test"
+
+
+def exit(message=None, error=False):
+    if message:
+        print(message)
+
+    sys.exit(int(error))
+
+
+def panic(message=None):
+    exit(message=message, error=True)
+
+
+def in_git_repository():
+    dev_null = open(os.devnull, 'wb')
+    return 0 == subprocess.call("git status -s --porcelain 2> /dev/null",
+                                stdout=dev_null,
+                                stderr=dev_null,
+                                shell=True)
+
+
+def get_app_name():
+    return os.path.split(os.getcwd())[-1]
+
+
+def get_app_version():
+    if not in_git_repository():
+        panic("Not a git repo, can't obtain application's version.")
+
+    return subprocess.check_output("git describe --tags", shell=True).strip()
+
+
+def get_aws_cli_credentials(profile):
+    config = ConfigParser.ConfigParser()
+    config.read(os.path.expanduser("~/.aws/credentials"))
+
+    key = config.get(profile, "aws_access_key_id")
+    secret = config.get(profile, "aws_secret_access_key")
+
+    return key, secret
+
+
+def get_s3_conn(profile=DEFAULT_S3_PROFILE):
+    return boto.connect_s3(*get_aws_cli_credentials(profile))
+
+
+def get_beanstalk(profile=DEFAULT_EB_PROFILE):
+    region = beanstalk.regions()[2]
+    return beanstalk.layer1.Layer1(*get_aws_cli_credentials(profile),
+                                   region=region)
+
+
+def upload_source_bundle(app, version, source_bundle_path, overwrite=False):
+    if not source_bundle_path:
+        source_bundle_path = "target/%s-%s.zip" % (app, version)
+        print("Source bundle location not given, using default: %s"
+              % source_bundle_path)
+        
+    print("Upload source bundle %s for %s:%s" % (source_bundle_path, app, version))
+
+    if not os.path.isfile(source_bundle_path):
+        panic("Source bundle not found: %s" % source_bundle_path)
+
+    source_bundle_path = os.path.expanduser(source_bundle_path)
+
+    s3 = get_s3_conn()
+
+    print("  Bucket: %s" % S3_BUILD_DEPS_BUCKET)
+    build_deps_bucket = s3.get_bucket(S3_BUILD_DEPS_BUCKET)
+
+    print("  Key: %s/%s-%s.zip" % (app, app, version))
+    key = boto.s3.key.Key(build_deps_bucket,
+                          "%s/%s-%s.zip" % (app, app, version))
+
+    if not overwrite and key.exists():
+        print("  Source bundle already exists.")
+        return key.key
+
+    with open(source_bundle_path) as f:
+        key.set_contents_from_file(f)
+
+    return key.key
+
+
+def create_version(app, version, s3_bucket, s3_key):
+    print("Create version %s:%s" % (app, version))
+    layer1 = get_beanstalk()
+    return layer1.create_application_version(app,
+                                             version,
+                                             description=version,
+                                             s3_bucket=s3_bucket,
+                                             s3_key=s3_key)
+
+
+def deploy_version(app, version):
+    print("Deploy version %s:%s" % (app, version))
+    layer1 = get_beanstalk()
+    try:
+        layer1.update_environment(environment_name=app,
+                                  version_label=version)
+    except boto.exception.BotoServerError as e:
+        panic("Error: %s" % e.message)
+
+
+def list_versions(app):
+    layer1 = get_beanstalk()
+    data = layer1.describe_application_versions(application_name=app)
+
+    response_key = "DescribeApplicationVersionsResponse"
+    result_key = "DescribeApplicationVersionsResult"
+    versions_key = "ApplicationVersions"
+    versions = data[response_key][result_key][versions_key]
+
+    for version in versions:
+        print("%s:%s" % (app, version["VersionLabel"]))
+
+
+def main():
+    parser = argparse.ArgumentParser("ebizzle")
+
+    parser.add_argument("-e", "--env",
+                        required=False,
+                        help="Environment to perform the action on.")
+    parser.add_argument("-s", "--source-bundle",
+                        required=False,
+                        help="EB's source bundle location.")
+    parser.add_argument("action", nargs=1,
+                        choices=["create", "deploy", "list"],
+                        help="Action to perform: create, deploy, list.")
+    parser.add_argument("app", metavar="app:version", nargs="?",
+                        help=("Explicitly specify application and version. "
+                              "Will try to extract information from the git "
+                              "repo in current working dir if not given."))
+
+    args = parser.parse_args()
+
+    action = args.action[0]
+    try:
+        app, version = args.app.split(":")
+    except AttributeError:
+        app = get_app_name()
+        version = get_app_version()
+    except ValueError:
+        if ":" in args.app:
+            raise
+        app = args.app
+        version = None
+
+    if action == "create":
+        key = upload_source_bundle(app, version, args.source_bundle)
+        create_version(app,
+                       version,
+                       s3_bucket=S3_BUILD_DEPS_BUCKET,
+                       s3_key=key)
+    elif action == "deploy":
+        deploy_version(app, version)
+    elif action == "list":
+        list_versions(app)
+
+
+if __name__ == "__main__":
+    main()
