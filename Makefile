@@ -6,7 +6,7 @@ create_virtualenv:
 
 create_bin:
 	echo "#!/bin/bash" > $(BIN)
-	echo "$(shell pwd)/env/bin/python $(shell pwd)/src/ebizzle \$$@" >> $(BIN)
+	echo "$(shell pwd)/env/bin/python $(shell pwd)/src/ebizzle.py \$$@" >> $(BIN)
 	chmod +x $(BIN)
 
 install: create_virtualenv create_bin
