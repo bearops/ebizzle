@@ -208,7 +208,11 @@ def main():
         if ":" in args.app:
             raise
         app = args.app
-        version = None
+
+        if action == "list":
+            version = None
+        else:
+            version = get_app_version()
 
     if args.all_profiles:
         profiles = get_profile_names()
