@@ -45,6 +45,17 @@ def get_app_version():
         panic("Not a git repo, can't obtain application's version.")
 
     dev_null = open(os.devnull, "wb")
+
+    if os.path.isfile("docker/tag_helper.sh"):
+        try:
+            name = subprocess.check_output("docker/tag_helper.sh",
+                                           stderr=dev_null,
+                                           shell=True)
+        except subprocess.CalledProcessError:
+            pass
+        else:
+            return name.strip()
+
     try:
         name = subprocess.check_output("git describe --tags",
                                        stderr=dev_null,
@@ -98,7 +109,7 @@ def upload_source_bundle(profile, app, version, source_bundle_path,
         io.echo("Source bundle location not given, using default: %s"
                 % (source_bundle_path))
     else:
-        io.echo("Source bundle location: %s" % (source_bunde_path))
+        io.echo("Source bundle location: %s" % (source_bundle_path))
 
     if not os.path.isfile(source_bundle_path):
         panic("Source bundle not found: %s" % (source_bundle_path))
