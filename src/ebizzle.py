@@ -16,6 +16,67 @@ S3_BUILD_DEPS_BUCKET = "dbz-build-deps"
 DEFAULT_PROFILE = "test"
 
 
+class Format(object):
+    """Ebizzle output format choices and logic."""
+
+    TEXT = "text"
+    BASH = "bash"
+    JSON = "json"
+
+    @staticmethod
+    def all():
+        return (Format.TEXT,
+                Format.BASH,
+                Format.JSON)
+
+    @staticmethod
+    def print_dict(dictionary, format_=None):
+        """Print a dictionary in a given format. Defaults to text."""
+
+        if format_ is None:
+            format_ = Format.TEXT
+
+        if format_ == Format.TEXT:
+            for k, v in dictionary.iteritems():
+                io.echo("%s = %s" % (k, v))
+        elif format_ == Format.BASH:
+            for k, v in dictionary.iteritems():
+                io.echo("export %s='%s'" % (k, v))
+        elif format_ == Format.JSON:
+            io.echo(json.dumps(dictionary))
+
+    @staticmethod
+    def print_list(list_, format_=None):
+        """Print a list in a given format. Defaults to text."""
+
+        if format_ is None:
+            format_ = Format.TEXT
+
+        if format_ == Format.TEXT:
+            for item in list_:
+                io.echo(item)
+        elif format_ == Format.JSON:
+            io.echo(json.dumps(list_))
+
+
+class Action(object):
+    """Ebizzle user action choices."""
+
+    CREATE = "create"
+    DEPLOY = "deploy"
+    LIST = "list"
+    PROFILES = "profiles"
+    DESC_ENV = "describe-env"
+
+    @staticmethod
+    def all():
+        return (Action.CREATE,
+                Action.DEPLOY,
+                Action.LIST,
+                Action.PROFILES,
+                Action.DESC_ENV)
+
+
 def exit(message=None, error=False):
     if message:
         io.error(message)
@@ -28,6 +89,8 @@ def panic(message=None):
 
 
 def in_git_repository():
+    """Is current working dir a git repo?"""
+
     dev_null = open(os.devnull, "wb")
 
     return 0 == subprocess.call("git status -s --porcelain",
@@ -37,10 +100,14 @@ def in_git_repository():
 
 
 def get_app_name():
+    """Extract application's name (assume it's same as CWD dir)."""
+
     return os.path.split(os.getcwd())[-1]
 
 
 def get_app_version():
+    """Extract application's version from Git (or tag_helper, if exists)."""
+
     if not in_git_repository():
         panic("Not a git repo, can't obtain application's version.")
 
@@ -67,6 +134,8 @@ def get_app_version():
 
 
 def get_config():
+    """Return ebizzle's config."""
+
     config = ConfigParser.ConfigParser()
     config.read(os.path.expanduser("~/.ebizzle/config"))
 
@@ -74,6 +143,8 @@ def get_config():
 
 
 def get_credentials(profile):
+    """Returns credentials for given profile as a (key, secret) tuple."""
+
     config = get_config()
 
     key = config.get(profile, "aws_access_key_id")
@@ -83,10 +154,14 @@ def get_credentials(profile):
 
 
 def get_profile_names():
+    """Get available profile names."""
+
     return get_config().sections()
 
 
 def get_s3_conn(profile="production"):
+    """Establish and return S3 connection."""
+
     if profile not in get_profile_names():
         profile = get_profile_names()[0]
 
@@ -94,6 +169,8 @@ def get_s3_conn(profile="production"):
 
 
 def get_beanstalk(profile):
+    """Create and return EB's Layer1."""
+
     region = beanstalk.regions()[2]
     return beanstalk.layer1.Layer1(*get_credentials(profile),
                                    region=region)
@@ -101,6 +178,8 @@ def get_beanstalk(profile):
 
 def upload_source_bundle(profile, app, version, source_bundle_path,
                          overwrite=False):
+    """Upload EB source bundle to S3."""
+
     io.info("[profile:%s]" % profile)
     io.echo("Upload source bundle for %s:%s" % (app, version))
 
@@ -136,6 +215,8 @@ def upload_source_bundle(profile, app, version, source_bundle_path,
 
 
 def create_version(profile, app, version, s3_bucket, s3_key):
+    """Create application's version in EB."""
+
     io.info("[profile:%s]" % profile)
     print("Create version %s:%s" % (app, version))
     layer1 = get_beanstalk(profile)
@@ -151,6 +232,8 @@ def create_version(profile, app, version, s3_bucket, s3_key):
 
 
 def deploy_version(profile, app, version):
+    """Deploy application's version in EB."""
+
     io.info("[profile:%s]" % profile)
     io.echo("Deploy version %s:%s" % (app, version))
     layer1 = get_beanstalk(profile)
@@ -161,23 +244,53 @@ def deploy_version(profile, app, version):
         io.error(e.message)
 
 
-def list_versions(profile, app):
+def list_versions(profile, app, format_=Format.TEXT):
+    """List available application's versions in EB"""
+
     io.info("[profile:%s]" % profile)
     layer1 = get_beanstalk(profile)
     data = layer1.describe_application_versions(application_name=app)
 
-    response_key = "DescribeApplicationVersionsResponse"
-    result_key = "DescribeApplicationVersionsResult"
-    versions_key = "ApplicationVersions"
-    versions = data[response_key][result_key][versions_key]
+    versions = (data["DescribeApplicationVersionsResponse"]
+                    ["DescribeApplicationVersionsResult"]
+                    ["ApplicationVersions"])
 
-    for version in versions:
-        io.echo("%s:%s" % (app, version["VersionLabel"]))
+    Format.print_list([version["VersionLabel"] for version in versions],
+                      format_)
 
 
-def list_profiles():
-    for profile in get_profile_names():
-        io.echo(profile)
+def list_profiles(format_=Format.TEXT):
+    """List available user profiles."""
+
+    Format.print_list(get_profile_names(), format_)
+
+
+def describe_env(profile, app, version=None, format_=Format.TEXT):
+    """Describe application's environment variables."""
+    if version is None:
+        version = app
+
+    io.info("[profile:%s]" % profile)
+    layer1 = get_beanstalk(profile)
+    try:
+        data = layer1.describe_configuration_settings(application_name=app,
+                                                      environment_name=version)
+    except boto.exception.BotoServerError as e:
+        io.error(e.message)
+        return
+
+    env_vars = (data["DescribeConfigurationSettingsResponse"]
+                    ["DescribeConfigurationSettingsResult"]
+                    ["ConfigurationSettings"]
+                    [0]
+                    ["OptionSettings"])
+
+    aws_env_var_option = "aws:elasticbeanstalk:application:environment"
+
+    env_vars = {v["OptionName"]: v["Value"] for v in env_vars
+                if v["Namespace"] == aws_env_var_option}
+
+    Format.print_dict(env_vars, format_)
 
 
 def main():
@@ -194,9 +307,14 @@ def main():
                         required=False,
                         action="store_true",
                         help="Apply for all AWS CLI profiles.")
+    parser.add_argument("-f", "--format",
+                        required=False,
+                        default=Format.TEXT,
+                        choices=Format.all(),
+                        help="Output format (text or json)")
     parser.add_argument("action", nargs=1,
-                        choices=["create", "deploy", "list", "profiles"],
-                        help="Action to perform: create, deploy, list.")
+                        choices=Action.all(),
+                        help="Action to perform.")
     parser.add_argument("app", metavar="app:version", nargs="?",
                         help=("Explicitly specify application and version. "
                               "Will try to extract information from the git "
@@ -206,8 +324,8 @@ def main():
 
     action = args.action[0]
 
-    if action == "profiles":
-        list_profiles()
+    if action == Action.PROFILES:
+        list_profiles(args.format)
         return
 
     try:
@@ -220,7 +338,7 @@ def main():
             raise
         app = args.app
 
-        if action == "list":
+        if action == Action.LIST:
             version = None
         else:
             version = get_app_version()
@@ -235,7 +353,7 @@ def main():
 
         profiles = [profile]
 
-    if action == "create":
+    if action == Action.CREATE:
         key = upload_source_bundle(profiles[0],
                                    app,
                                    version,
@@ -246,14 +364,17 @@ def main():
                            version,
                            S3_BUILD_DEPS_BUCKET,
                            key)
-    elif action == "deploy":
+    elif action == Action.DEPLOY:
         if args.all_profiles:
             panic("Nope, sorry: won't deploy to all profiles. Not happening. "
                   "Nope.")
         deploy_version(profiles[0], app, version)
-    elif action == "list":
+    elif action == Action.LIST:
         for i, profile in enumerate(profiles):
-            list_versions(profile, app)
+            list_versions(profile, app, args.format)
+    elif action == Action.DESC_ENV:
+        for profile in profiles:
+            describe_env(profile, app, version, args.format)
 
 
 if __name__ == "__main__":
