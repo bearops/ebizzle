@@ -23,6 +23,8 @@ class Format(object):
     BASH = "bash"
     JSON = "json"
 
+    DEFAULT = "text"
+
     @staticmethod
     def all():
         return (Format.TEXT,
@@ -33,15 +35,14 @@ class Format(object):
     def print_dict(dictionary, format_=None):
         """Print a dictionary in a given format. Defaults to text."""
 
-        if format_ is None:
-            format_ = Format.TEXT
+        format_ = format_ or Format.DEFAULT
 
         if format_ == Format.TEXT:
-            for k, v in dictionary.iteritems():
-                io.echo("%s = %s" % (k, v))
+            for k in sorted(dictionary.keys()):
+                io.echo("%s = %s" % (k, dictionary[k]))
         elif format_ == Format.BASH:
-            for k, v in dictionary.iteritems():
-                io.echo("export %s='%s'" % (k, v))
+            for k in sorted(dictionary.keys()):
+                io.echo("export %s='%s'" % (k, dictionary[k]))
         elif format_ == Format.JSON:
             io.echo(json.dumps(dictionary))
 
@@ -49,14 +50,24 @@ class Format(object):
     def print_list(list_, format_=None):
         """Print a list in a given format. Defaults to text."""
 
-        if format_ is None:
-            format_ = Format.TEXT
+        format_ = format_ or Format.DEFAULT
 
         if format_ == Format.TEXT:
             for item in list_:
                 io.echo(item)
         elif format_ == Format.JSON:
             io.echo(json.dumps(list_))
+
+    @staticmethod
+    def print_profile(profile, format_=None):
+        """Print profile header."""
+
+        format_ = format_ or Format.DEFAULT
+
+        if format_ == Format.TEXT:
+            io.info("[profile:%s]" % profile)
+        elif format_ == Format.BASH:
+            io.echo("# profile: %s" % profile)
 
 
 class Action(object):
@@ -66,7 +77,7 @@ class Action(object):
     DEPLOY = "deploy"
     LIST = "list"
     PROFILES = "profiles"
-    DESC_ENV = "describe-env"
+    ENV = "env"
 
     @staticmethod
     def all():
@@ -74,7 +85,7 @@ class Action(object):
                 Action.DEPLOY,
                 Action.LIST,
                 Action.PROFILES,
-                Action.DESC_ENV)
+                Action.ENV)
 
 
 def exit(message=None, error=False):
@@ -180,7 +191,7 @@ def upload_source_bundle(profile, app, version, source_bundle_path,
                          overwrite=False):
     """Upload EB source bundle to S3."""
 
-    io.info("[profile:%s]" % profile)
+    Format.print_profile(profile)
     io.echo("Upload source bundle for %s:%s" % (app, version))
 
     if not source_bundle_path:
@@ -217,7 +228,7 @@ def upload_source_bundle(profile, app, version, source_bundle_path,
 def create_version(profile, app, version, s3_bucket, s3_key):
     """Create application's version in EB."""
 
-    io.info("[profile:%s]" % profile)
+    Format.print_profile(profile)
     print("Create version %s:%s" % (app, version))
     layer1 = get_beanstalk(profile)
 
@@ -270,7 +281,8 @@ def describe_env(profile, app, version=None, format_=Format.TEXT):
     if version is None:
         version = app
 
-    io.info("[profile:%s]" % profile)
+    Format.print_profile(profile, format_)
+
     layer1 = get_beanstalk(profile)
     try:
         data = layer1.describe_configuration_settings(application_name=app,
@@ -338,7 +350,7 @@ def main():
             raise
         app = args.app
 
-        if action == Action.LIST:
+        if action in (Action.LIST, Action.ENV):
             version = None
         else:
             version = get_app_version()
@@ -372,7 +384,7 @@ def main():
     elif action == Action.LIST:
         for i, profile in enumerate(profiles):
             list_versions(profile, app, args.format)
-    elif action == Action.DESC_ENV:
+    elif action == Action.ENV:
         for profile in profiles:
             describe_env(profile, app, version, args.format)
 
