@@ -42,7 +42,7 @@ class Format(object):
                 io.echo("%s = %s" % (k, dictionary[k]))
         elif format_ == Format.BASH:
             for k in sorted(dictionary.keys()):
-                io.echo("export %s='%s'" % (k, dictionary[k]))
+                io.echo("export %s=%s" % (k, dictionary[k]))
         elif format_ == Format.JSON:
             io.echo(json.dumps(dictionary))
 
