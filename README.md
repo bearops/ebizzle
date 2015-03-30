@@ -1,11 +1,13 @@
 # ebizzle
 
-A Python tool for ElasticBeanstalk app management.
+A Python wrapper for ElasticBeanstalk app management.
 
 What can it do?
 * Create a new version of your application.
 * Deploy an existing version of your application.
 * List available versions of your applications.
+* List available applications.
+* List your application's environment variables.
 
 # Install
 
