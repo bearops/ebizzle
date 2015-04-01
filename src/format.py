@@ -8,11 +8,13 @@ BASH = "bash"
 
 JSON = "json"
 
+DOCKERENV = "dockerenv"
+
 DEFAULT = "text"
 
 
 def all():
-    return (TEXT, BASH, JSON)
+    return (TEXT, BASH, JSON, DOCKERENV)
 
 
 def print_dict(dictionary, format_=None):
@@ -23,6 +25,9 @@ def print_dict(dictionary, format_=None):
     if format_ == TEXT:
         for k in sorted(dictionary.keys()):
             io.echo("%s = %s" % (k, dictionary[k]))
+    elif format_ == DOCKERENV:
+        for k in sorted(dictionary.keys()):
+            io.echo("%s=%s" % (k, dictionary[k]))
     elif format_ == BASH:
         for k in sorted(dictionary.keys()):
             io.echo("export %s=%s" % (k, dictionary[k]))
