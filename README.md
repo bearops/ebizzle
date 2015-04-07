@@ -12,7 +12,7 @@ What can it do?
 # Install
 
 ```bash
-git clone https://github.com/bearops/ebizzle.git && cd ebizzle && make install
+git clone https://github.com/dubizzle/ebizzle.git && cd ebizzle && make install
 ```
 
 A `/usr/local/bin/ebizzle` script will be created in the installation process.
