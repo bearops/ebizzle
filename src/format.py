@@ -1,5 +1,6 @@
 """Output formatting."""
 import myio as io
+import json
 
 
 TEXT = "text"
