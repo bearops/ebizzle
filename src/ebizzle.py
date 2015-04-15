@@ -15,6 +15,8 @@ import myio as io
 
 S3_BUILD_DEPS_BUCKET = "dbz-build-deps"
 
+READ_ONLY = False
+
 
 class Action(object):
     """Ebizzle user action choices."""
@@ -104,15 +106,22 @@ def upload_source_bundle(profile, app, version, source_bundle_path,
     fmt.print_profile(profile)
     io.echo("Upload source bundle for %s:%s" % (app, version))
 
-    if not source_bundle_path:
-        source_bundle_path = "target/%s-%s.zip" % (app, version)
-        io.echo("Source bundle location not given, using default: %s"
-                % (source_bundle_path))
-    else:
-        io.echo("Source bundle location: %s" % (source_bundle_path))
+    source_bundle_alt_paths = ["target/%s-%s.zip" % (app, version),
+                               "target/source-bundle.zip"]
 
-    if not os.path.isfile(source_bundle_path):
-        panic("Source bundle not found: %s" % (source_bundle_path))
+    if not source_bundle_path:
+        io.echo("Source bundle location not given, trying alternative "
+                "locations.")
+        for alt_path in source_bundle_alt_paths:
+            if os.path.isfile(alt_path):
+                io.echo("Source bundle found: %s" % alt_path)
+                source_bundle_path = alt_path
+                break
+            else:
+                io.echo("Source bundle not found: %s" % alt_path)
+
+    if not source_bundle_path or not os.path.isfile(source_bundle_path):
+        panic("Source bundle not found.")
 
     source_bundle_path = os.path.expanduser(source_bundle_path)
 
@@ -122,6 +131,7 @@ def upload_source_bundle(profile, app, version, source_bundle_path,
     build_deps_bucket = s3.get_bucket(S3_BUILD_DEPS_BUCKET)
 
     io.echo("Key: %s/%s-%s.zip" % (app, app, version))
+
     key = boto.s3.key.Key(build_deps_bucket,
                           "%s/%s-%s.zip" % (app, app, version))
 
@@ -130,7 +140,11 @@ def upload_source_bundle(profile, app, version, source_bundle_path,
         return key.key
 
     with open(source_bundle_path) as f:
-        key.set_contents_from_file(f)
+        if not READ_ONLY:
+            key.set_contents_from_file(f)
+        else:
+            io.echo("READ ONLY: write %s contents to S3 key."
+                    % source_bundle_path)
 
     return key.key
 
@@ -142,14 +156,23 @@ def create_version(profile, app, version, s3_bucket, s3_key):
     print("Create version %s:%s" % (app, version))
     layer1 = get_beanstalk(profile)
 
-    try:
-        layer1.create_application_version(app,
-                                          version,
-                                          description=version,
-                                          s3_bucket=s3_bucket,
-                                          s3_key=s3_key)
-    except boto.exception.BotoServerError as e:
-        io.error(e.message)
+    kwargs = {
+        "application_name": app,
+        "version_label": version,
+        "description": version,
+        "s3_bucket": s3_bucket,
+        "s3_key": s3_key
+    }
+
+    if not READ_ONLY:
+        try:
+            layer1.create_application_version(**kwargs)
+        except boto.exception.BotoServerError as e:
+            io.error(e.message)
+    else:
+        io.echo("READ_ONLY: Create EB application version:")
+        for item, value in kwargs.iteritems():
+            io.echo("  %s => %s" % (item, value))
 
 
 def deploy_version(profile, app, version):
@@ -158,14 +181,25 @@ def deploy_version(profile, app, version):
     io.info("[profile:%s]" % profile)
     io.echo("Deploy version %s:%s" % (app, version))
     layer1 = get_beanstalk(profile)
-    try:
-        layer1.update_environment(environment_name=app,
-                                  version_label=version)
-    except boto.exception.BotoServerError as e:
-        io.error(e.message)
+
+    kwargs = {
+        "environment_name": app,
+        "version_label": version
+    }
+
+    if not READ_ONLY:
+        try:
+            layer1.update_environment(**kwargs)
+        except boto.exception.BotoServerError as e:
+            io.error(e.message)
+    else:
+        io.echo("READ_ONLY: Update EB environment:")
+        for item, value in kwargs.iteritems():
+            io.echo("  %s => %s" % (item, value))
 
 
 def list_applications(profile, format_=fmt.TEXT):
+    """List applications in EB."""
 
     fmt.print_profile(profile, format_)
 
@@ -241,6 +275,11 @@ def main():
                         required=False,
                         help="EB's source bundle location.")
 
+    parser.add_argument("--read-only",
+                        action="store_true",
+                        required=False,
+                        help="Don't make any changes to the infrastructure.")
+
     profile_group = parser.add_mutually_exclusive_group()
     profile_group.add_argument("-p", "--profile",
                                required=False,
@@ -267,6 +306,9 @@ def main():
                               "repo in current working dir if not given."))
 
     args = parser.parse_args()
+
+    global READ_ONLY
+    READ_ONLY = args.read_only
 
     action = args.action[0]
 
