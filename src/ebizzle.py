@@ -4,6 +4,7 @@ import sys
 import json
 import boto
 from boto import beanstalk
+from boto import ec2
 import argparse
 import subprocess
 import ConfigParser
@@ -26,6 +27,7 @@ class Action(object):
     LIST = "list"
     PROFILES = "profiles"
     ENV = "env"
+    INSTANCES = "instances"
 
     @staticmethod
     def all():
@@ -33,7 +35,8 @@ class Action(object):
                 Action.DEPLOY,
                 Action.LIST,
                 Action.PROFILES,
-                Action.ENV)
+                Action.ENV,
+                Action.INSTANCES)
 
 
 def panic(message=None):
@@ -97,6 +100,13 @@ def get_beanstalk(profile):
     region = beanstalk.regions()[2]
     return beanstalk.layer1.Layer1(*config.get_credentials(profile),
                                    region=region)
+
+
+def get_ec2(profile):
+    """Create and return EC2Connection."""
+    region = ec2.regions()[3]
+    return ec2.connection.EC2Connection(*config.get_credentials(profile),
+                                        region=region)
 
 
 def upload_source_bundle(profile, app, version, source_bundle_path,
@@ -268,6 +278,33 @@ def describe_env(profile, app, version=None, format_=fmt.TEXT):
     fmt.print_dict(env_vars, format_)
 
 
+def describe_instances(profile, app):
+    """Describe EB environment's instances in Ansible inventory format."""
+
+    layer1 = get_beanstalk(profile)
+
+    try:
+        data = layer1.describe_environment_resources(environment_name=app)
+    except boto.exception.BotoServerError as e:
+        io.error(e.message)
+        return
+
+    instance_ids = (data["DescribeEnvironmentResourcesResponse"]
+                        ["DescribeEnvironmentResourcesResult"]
+                        ["EnvironmentResources"]
+                        ["Instances"])
+
+    instance_ids = [x["Id"] for x in instance_ids]
+
+    ec2_conn = get_ec2(profile)
+    instances = ec2_conn.get_only_instances(instance_ids=instance_ids)
+
+    io.echo("[%s]" % app)
+    for i in instances:
+        io.echo("%s-%s\tansible_ssh_host=%s\tansible_ssh_user=ec2-user"
+                % (app, i.id, i.private_ip_address))
+
+
 def main():
     parser = argparse.ArgumentParser("ebizzle")
 
@@ -325,7 +362,7 @@ def main():
             raise
         app = args.app
 
-        if action in (Action.LIST, Action.ENV):
+        if action in (Action.LIST, Action.ENV, Action.INSTANCES):
             version = None
         else:
             version = get_app_version()
@@ -362,6 +399,9 @@ def main():
     elif action == Action.ENV:
         for profile in profiles:
             describe_env(profile, app, version, args.format)
+    elif action == Action.INSTANCES:
+        for profile in profiles:
+            describe_instances(profile, app)
 
 
 if __name__ == "__main__":
