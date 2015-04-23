@@ -15,7 +15,10 @@ def _print(*messages, **kwargs):
         return
 
     elif len(messages) == 1:
-        messages = messages[0].split('\n')
+        try:
+            messages = messages[0].split('\n')
+        except AttributeError:
+            pass
 
     color = kwargs.get('color', None)
 
