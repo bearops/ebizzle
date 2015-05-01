@@ -13,9 +13,10 @@ DOCKERENV = "dockerenv"
 
 DEFAULT = "text"
 
+NAME_VALUE_DICT = "nvdict" #chronos requires this format for env values
 
 def all():
-    return (TEXT, BASH, JSON, DOCKERENV)
+    return (TEXT, BASH, JSON, DOCKERENV, NAME_VALUE_DICT)
 
 
 def print_dict(dictionary, format_=None):
@@ -24,16 +25,21 @@ def print_dict(dictionary, format_=None):
     format_ = format_ or DEFAULT
 
     if format_ == TEXT:
-        for k in sorted(dictionary.keys()):
-            io.echo("%s = %s" % (k, dictionary[k]))
+        for key, value in iter(sorted(dictionary.iteritems())):
+            io.echo("%s = %s" % (key, value))
     elif format_ == DOCKERENV:
-        for k in sorted(dictionary.keys()):
-            io.echo("%s=%s" % (k, dictionary[k]))
+        for key, value in iter(sorted(dictionary.iteritems())):
+            io.echo("%s=%s" % (key, value))
     elif format_ == BASH:
-        for k in sorted(dictionary.keys()):
-            io.echo("export %s=%s" % (k, dictionary[k]))
+        for key, value in iter(sorted(dictionary.iteritems())):
+            io.echo("export %s=%s" % (key, value))
     elif format_ == JSON:
         io.echo(json.dumps(dictionary))
+    elif format_ == NAME_VALUE_DICT:
+        io.echo("[")
+        for key, value in iter(sorted(dictionary.iteritems())):
+            io.echo('{"name": "%s", "value"="%s"},' % (key, value))
+        io.echo("]")
 
 
 def print_list(list_, format_=None):
