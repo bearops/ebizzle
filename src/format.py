@@ -38,7 +38,7 @@ def print_dict(dictionary, format_=None):
     elif format_ == NAME_VALUE_DICT:
         io.echo("[")
         for key, value in iter(sorted(dictionary.iteritems())):
-            io.echo('{"name": "%s", "value"="%s"},' % (key, value))
+            io.echo('{"name": "%s", "value": "%s"},' % (key, value))
         io.echo("]")
 
 
