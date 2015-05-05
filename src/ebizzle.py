@@ -14,9 +14,28 @@ import format as fmt
 import myio as io
 
 
-S3_BUILD_DEPS_BUCKET = "dbz-build-deps"
+S3_BUILD_DEPS_BUCKET = {
+    "atlas": "atlas-build-deps"
+}
+
+S3_BUILD_DEPS_BUCKET_DEFAULT = "dbz-build-deps"
+
+
+S3_PROFILE = {
+    "atlas": "atlas"
+}
+
+S3_PROFILE_DEFAULT = config.get_profile_names()[0]
 
 READ_ONLY = False
+
+
+def get_build_deps_bucket(profile=None):
+    return S3_BUILD_DEPS_BUCKET.get(profile, S3_BUILD_DEPS_BUCKET_DEFAULT)
+
+
+def get_s3_profile(profile=None):
+    return S3_PROFILE.get(profile, S3_PROFILE_DEFAULT)
 
 
 class Action(object):
@@ -135,10 +154,12 @@ def upload_source_bundle(profile, app, version, source_bundle_path,
 
     source_bundle_path = os.path.expanduser(source_bundle_path)
 
-    s3 = get_s3_conn()
+    s3 = get_s3_conn(get_s3_profile(profile))
 
-    io.echo("Bucket: %s" % (S3_BUILD_DEPS_BUCKET))
-    build_deps_bucket = s3.get_bucket(S3_BUILD_DEPS_BUCKET)
+    bucket = get_build_deps_bucket(profile)
+
+    io.echo("Bucket: %s" % (bucket))
+    build_deps_bucket = s3.get_bucket(bucket)
 
     io.echo("Key: %s/%s-%s.zip" % (app, app, version))
 
@@ -378,7 +399,7 @@ def main():
         profiles = [profile]
 
     if action == Action.CREATE:
-        key = upload_source_bundle(profiles[0],
+        key = upload_source_bundle(profile,
                                    app,
                                    version,
                                    args.source_bundle)
@@ -386,7 +407,7 @@ def main():
             create_version(profile,
                            app,
                            version,
-                           S3_BUILD_DEPS_BUCKET,
+                           get_build_deps_bucket(profile),
                            key)
     elif action == Action.DEPLOY:
         if args.all_profiles:
