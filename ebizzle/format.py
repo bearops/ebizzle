@@ -13,7 +13,8 @@ DOCKERENV = "dockerenv"
 
 DEFAULT = "text"
 
-NAME_VALUE_DICT = "nvdict" #chronos requires this format for env values
+NAME_VALUE_DICT = "nvdict"  # chronos requires this format for env values
+
 
 def all():
     return (TEXT, BASH, JSON, DOCKERENV, NAME_VALUE_DICT)

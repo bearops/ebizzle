@@ -1,3 +1,6 @@
 env
 *.sw[op]
 *.pyc
+build/*
+dist/*
+ebizzle.egg-info/*

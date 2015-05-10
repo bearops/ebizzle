@@ -1,13 +1,11 @@
 #!/usr/bin/env python
 import os
 import sys
-import json
 import boto
 from boto import beanstalk
 from boto import ec2
 import argparse
 import subprocess
-import ConfigParser
 
 import config
 import format as fmt
