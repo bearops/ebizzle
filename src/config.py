@@ -6,6 +6,10 @@ DEFAULT_PROFILE = "test"
 _profiles = [DEFAULT_PROFILE]
 
 
+class NoConfigFoundException(Exception):
+    pass
+
+
 def set_profiles(profiles):
     for profile in profiles:
         assert profile in get_profile_names()
@@ -21,8 +25,20 @@ def get_profiles():
 def _get_config_parser():
     """Return ebizzle's config."""
 
-    config_parser = ConfigParser.ConfigParser()
-    config_parser.read(os.path.expanduser("~/.ebizzle/config"))
+    config_paths = [
+        "~/.aws/credentials",
+        "~/.ebizzle/config"
+    ]
+
+    for config_path in config_paths:
+        if os.path.isfile(os.path.expanduser(config_path)):
+            config_parser = ConfigParser.ConfigParser()
+            config_parser.read(os.path.expanduser(config_path))
+            break
+    else:
+        raise NoConfigFoundException(
+            "Can't find a config file in any of the locations: %s"
+            % config_paths)
 
     return config_parser
 

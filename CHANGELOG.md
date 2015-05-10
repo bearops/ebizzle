@@ -1,5 +1,9 @@
 # Change Log
 
+## 2015-05-10
+### Changed
+- Try to read the config from ~/.aws/credentials first, fallback to ~/.ebizzle/config if that fails.
+
 ## 2015-04-23
 ### Added
 - Added `instances` action to list EB env's instances in Ansible inventory format. Example:
