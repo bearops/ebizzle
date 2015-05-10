@@ -17,6 +17,15 @@ git clone https://github.com/dubizzle/ebizzle.git && cd ebizzle && make install
 
 A `/usr/local/bin/ebizzle` script will be created in the installation process.
 
+## Alternatively, use `setup.py`
+
+```bash
+# Activate your preferred virtualenv
+git clone https://github.com/dubizzle/ebizzle.git
+cd ebizzle
+python setup.py install
+```
+
 # Config
 
 You'll need a config file holding your AWS credentials in `~/.ebizzle/config`:
