@@ -2,6 +2,10 @@
 
 ## 2015-05-10
 ### Changed
+- Setup using setuptools thanks to @jeethu
+
+## 2015-05-10
+### Changed
 - Try to read the config from ~/.aws/credentials first, fallback to ~/.ebizzle/config if that fails.
 
 ## 2015-04-23

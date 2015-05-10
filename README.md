@@ -1,6 +1,6 @@
 # ebizzle
 
-A Python wrapper for ElasticBeanstalk app management.
+A Python wrapper for AWS ElasticBeanstalk app management.
 
 What can it do?
 * Create a new version of your application.
@@ -9,15 +9,7 @@ What can it do?
 * List available applications.
 * List your application's environment variables.
 
-# Install
-
-```bash
-git clone https://github.com/dubizzle/ebizzle.git && cd ebizzle && make install
-```
-
-A `/usr/local/bin/ebizzle` script will be created in the installation process.
-
-## Alternatively, use `setup.py`
+## Install
 
 ```bash
 # Activate your preferred virtualenv
@@ -28,7 +20,10 @@ python setup.py install
 
 # Config
 
-You'll need a config file holding your AWS credentials in `~/.ebizzle/config`:
+ebizzle will try to read your AWS profiles from `~/.aws/credentials` and if not
+found: `~/.ebizzle/config`.
+
+Config should follow the default AWS credentials syntax:
 ```
 [profile_name]
 aws_access_key_id = foo
