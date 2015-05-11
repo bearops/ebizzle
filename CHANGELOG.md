@@ -1,5 +1,9 @@
 # Change Log
 
+## 2015-05-11
+### Fixed
+- Installation issue for pip 6.0+
+
 ## 2015-05-10
 ### Changed
 - Setup using setuptools thanks to @jeethu
