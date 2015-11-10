@@ -1,3 +1,5 @@
+:warning: Deprecated. Please take a look at [ebzl](https://github.com/bearops/ebzl) instead.
+
 # ebizzle
 
 A Python wrapper for AWS ElasticBeanstalk app management.
